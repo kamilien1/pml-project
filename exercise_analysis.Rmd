@@ -1,0 +1,133 @@
+---
+title: "Exercise Quality Prediction"
+author: "Kamil Bojanczyk"
+date: "September 27, 2015"
+output: html_document
+---
+
+### Summary of Analysis
+The goal of this project is to build a machine learning(ML) algorithm to 
+predict activity quality on a scale of A through E, known as a *classe*, from activity monitors. The 
+ML algorithm is tested on 20 test cases.
+
+#### Error
+Out of sample/out of bag error and cross-validation/confusion matrix error are found in step 2.
+ 
+### Data
+Training data is available [here]( https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv). The testing data (20 test cases) can be found [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv). Lastly, the project data source is found at the [Groupware\@LES site](http://groupware.les.inf.puc-rio.br/har).
+
+### Methodology
+The steps to perform the analysis are as follows:  
+
+1. raw data to tidy data  
+    + split data into **test** and **train** sets  
+    + run principal component analysis with the proper threshold to cut down variables  
+2. build the ML model
+    + run random forest to build a prediction model  
+    + compare test versus training set for accuracy (error testing) 
+3. predict activity quality for 20 test cases
+
+
+#### Step 1: Raw Data to Tidy Data
+Exploratory analysis was performed, and is not reproduced here. Three types of `NA` 
+values were found: `"NA"`,`"#DIV/0!"`,and`""`.
+
+```{r echo=F,cache=T}
+train <- read.csv("../data//pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+test <- read.csv("../data//pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+```{r echo=T,eval=FALSE}
+train <- read.csv("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+                     na.strings=c("NA","#DIV/0!",""))
+test <- read.csv("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+                 na.strings=c("NA","#DIV/0!",""))
+summary(train$class)
+```
+Now we will create a **data partition**. The 
+```{r echo=T, cache=T}
+library(caret,quietly=T)
+inTrain <- createDataPartition(y=train$classe, p=0.75, list=FALSE)
+training <- train[inTrain,]
+testing <- train[-inTrain,]
+library(dplyr,quietly=T)
+rows <- dim(training)[1] + dim(testing)[1]
+training %>% rbind(testing) %>% select(classe) %>% 
+    group_by(classe) %>% summarise(ratio=round(n()/rows,2))
+
+```
+From exploratory analysis (run the command `str(training)`), we see a number of columns 
+full of `NA` values. We also remove columns 1:6. Column 1 is an index of the 
+data. Columns 2:6, whose names are reproduced below, gave errors during the PCA 
+part of the data cleaning, and while I don't know with 100% certainty, I believe 
+we ignore these types of data when doing our ML algorithms. They are time-based 
+and index-based data. 
+```{r echo=T, cache=T}
+near_zero_var <- nearZeroVar(training, saveMetrics=TRUE)
+post_nzv_training <- training[,(!near_zero_var$nzv)]
+names(post_nzv_training)[1:6]
+post_nzv_training <- post_nzv_training[,-(1:6)]
+post_nzv_testing <- testing[,(!near_zero_var$nzv)]
+post_nzv_testing <- post_nzv_testing[,-(1:6)]
+dim(training)-dim(post_nzv_training)
+
+```
+**38** columns were cut. 
+
+While not shown, exploratory analysis revealed a large number of `NA` values in 
+many columns. The below code removes columns where **90% or more** of the values are `NA`. 
+The value of 90% was chosen randomly, without much understanding on the implications it may have.
+```{r echo=T, cache=T}
+high_na <- apply(post_nzv_training, 2, function(x) 
+                sum(is.na(x)))/nrow(post_nzv_training)
+post_nzv_na_training <- post_nzv_training[!(high_na > 0.9)]
+dim(post_nzv_na_training)
+dep_var <- which(names(post_nzv_na_training)=='classe')
+post_nzv_na_testing <- post_nzv_testing[!(high_na > 0.9)]
+```
+
+**Principal component analysis** allows us to reduce the number of dimensions in our data. 
+This helps reduce overfitting, and helps us tease out strong relationships in the data. 
+A great graphical explanation [can be found here](http://setosa.io/ev/principal-component-analysis/), and a nice airlines application of it is found [here](http://www.r-bloggers.com/pca-and-k-means-clustering-of-delta-aircraft/). 
+
+I used a high threshold of 95% after testing -- it significantly cuts down on the number of variables, which apparently helps with overfitting. The code is taken from a course lecture [slide](http://datasciencespecialization.github.io/courses/08_PracticalMachineLearning/016preProcessingPCA/#12). **Note:** The dependent variable `dep_var` is excluded from pre-processing, as we are only interested in finding the most *principal* components of our *independent* variables to include in our analysis.
+```{r echo=T, cache=T}
+dep_var <- which(names(post_nzv_na_training)=='classe')
+# now do PCA
+preProc <- preProcess(post_nzv_na_training[,-c(dep_var)],method='pca',thresh=0.95)
+preProc
+post_nzv_na_trainingPC <- predict(preProc,post_nzv_na_training[,-c(dep_var)])
+post_nzv_na_testingPC <- predict(preProc,post_nzv_na_testing[,-c(dep_var)])
+dim(post_nzv_training)-dim(post_nzv_na_trainingPC)
+```
+A further 93 columns were removed, including the dependent variable. 
+
+
+#### Step 2: Build the Machine Learning Model
+This step is large in implications, and small in implementation. The `randomForest` 
+decision tree method is used. 
+```{r echo=T,cache=T}
+library(randomForest,quietly=T)
+modelFit <- randomForest(training$classe ~ ., data=post_nzv_na_trainingPC, do.trace=F,
+                         importance=T);             modelFit
+```
+The **out-of-sample/out-of-bag** eror rate is **2.33%**(*1-testing accuracy*). [The importance](http://www.inside-r.org/packages/cran/randomForest/docs/importance) types (mean decrease in accuracy and Gini index) are shown below. More on importance 
+can be found [here](http://www.statistik.uni-dortmund.de/useR-2008/slides/Strobl+Zeileis.pdf).
+```{r echo=T, cache=TRUE}
+head(cbind(importance(modelFit,1),importance(modelFit,2)))
+```
+Now, let's look at our [accuracy](http://datasciencespecialization.github.io/courses/08_PracticalMachineLearning/016preProcessingPCA/#13) on the **testing** data set.
+```{r echo=T, cache=TRUE}
+confusionMatrix(testing$classe,predict(modelFit,post_nzv_na_testingPC))
+```
+Not bad. The **confusion matrix error** and **OOB** error are relatively low. Time to see if it works on our 20 final test cases.
+
+#### Step 3: Predict Activity Quality
+
+```{r echo=T, cache=TRUE}
+post_test <- test[,!near_zero_var$nzv]
+post_test <- post_test[,-(1:6)]
+post_test <- post_test[!(high_na > 0.9)]
+post_testPC <- predict(preProc, post_test[,-c(dep_var)])
+predict(modelFit,post_testPC)
+```
+We find only case 3 is wrong, giving us **95%** success in our prediction.
