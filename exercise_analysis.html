@@ -104,7 +104,7 @@ img {
 test &lt;- read.csv(&quot;http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;, 
                  na.strings=c(&quot;NA&quot;,&quot;#DIV/0!&quot;,&quot;&quot;))
 summary(train$class)</code></pre>
-<p>Now we will create a <strong>data partition</strong>. The</p>
+<p>Now we will create a <strong>data partition</strong>.</p>
 <pre class="r"><code>library(caret,quietly=T)
 inTrain &lt;- createDataPartition(y=train$classe, p=0.75, list=FALSE)
 training &lt;- train[inTrain,]
@@ -132,7 +132,7 @@ post_nzv_testing &lt;- testing[,(!near_zero_var$nzv)]
 post_nzv_testing &lt;- post_nzv_testing[,-(1:6)]
 dim(training)-dim(post_nzv_training)</code></pre>
 <pre><code>## [1]  0 42</code></pre>
-<p><strong>38</strong> columns were cut.</p>
+<p><strong>42</strong> columns were cut.</p>
 <p>While not shown, exploratory analysis revealed a large number of <code>NA</code> values in many columns. The below code removes columns where <strong>90% or more</strong> of the values are <code>NA</code>. The value of 90% was chosen randomly, without much understanding on the implications it may have.</p>
 <pre class="r"><code>high_na &lt;- apply(post_nzv_training, 2, function(x) 
                 sum(is.na(x)))/nrow(post_nzv_training)
@@ -160,7 +160,7 @@ preProc</code></pre>
 post_nzv_na_testingPC &lt;- predict(preProc,post_nzv_na_testing[,-c(dep_var)])
 dim(post_nzv_training)-dim(post_nzv_na_trainingPC)</code></pre>
 <pre><code>## [1]  0 93</code></pre>
-<p>A further 93 columns were removed, including the dependent variable.</p>
+<p>A further <strong>93</strong> columns were removed, including the dependent variable.</p>
 </div>
 <div id="step-2-build-the-machine-learning-model" class="section level4">
 <h4>Step 2: Build the Machine Learning Model</h4>
@@ -183,7 +183,7 @@ modelFit &lt;- randomForest(training$classe ~ ., data=post_nzv_na_trainingPC, do
 ## C    4   37 2499   21    6 0.026490066
 ## D    5    1   93 2308    5 0.043117745
 ## E    0   10   21   16 2659 0.017368810</code></pre>
-<p>The <strong>out-of-sample/out-of-bag</strong> eror rate is <strong>2.33%</strong>. <a href="http://www.inside-r.org/packages/cran/randomForest/docs/importance">The importance</a> types (mean decrease in accuracy and Gini index) are shown below. More on importance can be found <a href="http://www.statistik.uni-dortmund.de/useR-2008/slides/Strobl+Zeileis.pdf">here</a>.</p>
+<p>The <strong>out-of-sample/out-of-bag</strong> eror rate is <strong>2.29%</strong>(<em>1-testing accuracy</em>). <a href="http://www.inside-r.org/packages/cran/randomForest/docs/importance">The importance</a> types (mean decrease in accuracy and Gini index) are shown below. More on importance can be found <a href="http://www.statistik.uni-dortmund.de/useR-2008/slides/Strobl+Zeileis.pdf">here</a>.</p>
 <pre class="r"><code>head(cbind(importance(modelFit,1),importance(modelFit,2)))</code></pre>
 <pre><code>##     MeanDecreaseAccuracy MeanDecreaseGini
 ## PC1             74.78258         624.4335

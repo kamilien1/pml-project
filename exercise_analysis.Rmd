@@ -43,7 +43,7 @@ test <- read.csv("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing
                  na.strings=c("NA","#DIV/0!",""))
 summary(train$class)
 ```
-Now we will create a **data partition**. The 
+Now we will create a **data partition**. 
 ```{r echo=T, cache=T}
 library(caret,quietly=T)
 inTrain <- createDataPartition(y=train$classe, p=0.75, list=FALSE)
@@ -71,7 +71,7 @@ post_nzv_testing <- post_nzv_testing[,-(1:6)]
 dim(training)-dim(post_nzv_training)
 
 ```
-**38** columns were cut. 
+**42** columns were cut. 
 
 While not shown, exploratory analysis revealed a large number of `NA` values in 
 many columns. The below code removes columns where **90% or more** of the values are `NA`. 
@@ -99,7 +99,7 @@ post_nzv_na_trainingPC <- predict(preProc,post_nzv_na_training[,-c(dep_var)])
 post_nzv_na_testingPC <- predict(preProc,post_nzv_na_testing[,-c(dep_var)])
 dim(post_nzv_training)-dim(post_nzv_na_trainingPC)
 ```
-A further 93 columns were removed, including the dependent variable. 
+A further **93** columns were removed, including the dependent variable. 
 
 
 #### Step 2: Build the Machine Learning Model
@@ -110,7 +110,7 @@ library(randomForest,quietly=T)
 modelFit <- randomForest(training$classe ~ ., data=post_nzv_na_trainingPC, do.trace=F,
                          importance=T);             modelFit
 ```
-The **out-of-sample/out-of-bag** eror rate is **2.33%**(*1-testing accuracy*). [The importance](http://www.inside-r.org/packages/cran/randomForest/docs/importance) types (mean decrease in accuracy and Gini index) are shown below. More on importance 
+The **out-of-sample/out-of-bag** eror rate is **2.29%**(*1-testing accuracy*). [The importance](http://www.inside-r.org/packages/cran/randomForest/docs/importance) types (mean decrease in accuracy and Gini index) are shown below. More on importance 
 can be found [here](http://www.statistik.uni-dortmund.de/useR-2008/slides/Strobl+Zeileis.pdf).
 ```{r echo=T, cache=TRUE}
 head(cbind(importance(modelFit,1),importance(modelFit,2)))
